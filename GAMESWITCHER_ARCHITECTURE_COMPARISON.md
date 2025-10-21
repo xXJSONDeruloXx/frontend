@@ -280,19 +280,42 @@ int muxswitcher_main(void) {
 
 ### Format Compatibility
 
-**Good News:** Both OnionUI and muOS likely use RetroArch's standard `content_history.lpl` format.
+**CRITICAL DIFFERENCE:** muOS uses custom JSON format, NOT RetroArch's `content_history.lpl`!
 
-**File Structure:**
+**muOS Format (`playtime_data.json`):**
+```json
+{
+  "/path/to/rom.zip": {
+    "name": "Super Mario World",
+    "last_core": "snes9x_libretro.so",
+    "core_launches": {"snes9x_libretro.so": 15},
+    "device_launches": {"rg35xx": 10, "rg40xx": 5},
+    "mode_launches": {"handheld": 12, "console": 3},
+    "launches": 15,
+    "start_time": 1697800000,
+    "total_time": 3600,
+    "avg_time": 240,
+    "last_session": 180
+  }
+}
+```
+
+**OnionUI Format (`content_history.lpl`):**
 ```json
 {"type":5,"label":"Super Mario World","core_path":"/path/to/core.so","core_name":"SNES9x","db_name":"Nintendo - Super Nintendo Entertainment System.lpl","path":"/roms/snes/smw.sfc","crc32":"FFFFFFFF","runtime_hours":12,"runtime_minutes":34,"runtime_seconds":56,"last_played":1697800000}
 ```
 
-**Parsing (Identical):**
+**Parsing (Different Structure):**
 ```c
-// Both use cJSON
-cJSON *json = cJSON_Parse(line);
-cJSON *type = cJSON_GetObjectItem(json, "type");
-cJSON *path = cJSON_GetObjectItem(json, "path");
+// muOS parsing
+cJSON *root = cJSON_Parse(file_content);
+cJSON *game = NULL;
+cJSON_ArrayForEach(game, root) {
+    const char *rom_path = game->string;  // Key is the path
+    cJSON *name = cJSON_GetObjectItem(game, "name");
+    cJSON *last_core = cJSON_GetObjectItem(game, "last_core");
+}
+```
 ```
 
 **Key Fields:**
@@ -363,19 +386,36 @@ sendto(sock, "PAUSE", 5, 0, (struct sockaddr*)&addr, sizeof(addr));
 
 ---
 
-#### muOS (Check Implementation)
+#### muOS (Process-Based Control) ⚠️ **MAJOR DIFFERENCE**
 
-**Need to Verify:**
-```bash
-# Check if muOS uses same UDP protocol
-grep -r "55355\|retroarch.*port" /mnt/mmc/MUOS/
+**CONFIRMED:** muOS does NOT use UDP! Uses process signals instead.
+
+**Control Method:**
+```c
+// Find RetroArch process
+pid_t ra_pid = pgrep("retroarch");
+
+// Pause emulation
+kill(ra_pid, SIGSTOP);  // Freeze the process
+
+// Resume emulation
+kill(ra_pid, SIGCONT);  // Resume execution
+
+// Force quit
+kill(ra_pid, SIGKILL);
 ```
 
-**Alternative Methods:**
-1. **Unix sockets** - Local IPC
-2. **Signals** - SIGUSR1/SIGUSR2
-3. **Shared memory** - State exchange
-4. **Config files** - Write-then-notify
+**Save/Load States:**
+```bash
+# Config-based approach (muOS style)
+echo "savestate_auto_save = true" > /tmp/ra_autosave.cfg
+echo "savestate_auto_load = true" > /tmp/ra_autoload.cfg
+
+# Launch RA with config override
+retroarch --appendconfig /tmp/ra_autosave.cfg -L core.so game.rom
+```
+
+**Critical Note:** This requires complete rewrite of RetroArch integration layer!
 
 ---
 
@@ -825,7 +865,9 @@ valgrind --leak-check=full --track-origins=yes ./muxswitcher
     #define STORAGE_ROOT "/mnt/mmc/MUOS"
 #endif
 
-#define HISTORY_PATH STORAGE_ROOT "/save/history/content_history.lpl"
+#define PLAYTIME_DATA_PATH STORAGE_ROOT "/info/tracker/playtime_data.json"
+#define ROM_SCREENS_DIR STORAGE_ROOT "/save/screenshots"  // TO BE VERIFIED
+#define STATES_DIR STORAGE_ROOT "/save/state"  // TO BE VERIFIED
 ```
 
 ---
@@ -939,21 +981,22 @@ lv_obj_set_style_anim_time(obj, 0, 0);
 | Phase | Effort | Dependencies |
 |-------|--------|--------------|
 | Data structures | 3 days | None |
-| History parsing | 5 days | cJSON |
+| History parsing | 7 days | cJSON + custom format |
 | LVGL UI | 15 days | LVGL knowledge |
 | Input system | 3 days | muOS input API |
-| RetroArch integration | 7 days | UDP testing |
+| RetroArch integration | 10 days | Process signals, config-based |
 | Screenshot system | 5 days | PNG library |
-| Save state menu | 5 days | Threading |
-| Testing & debugging | 10 days | All components |
-| **Total** | **~53 days** | ~10-12 weeks |
+| Save state menu | 7 days | Threading + config manipulation |
+| Testing & debugging | 12 days | All components + hardware validation |
+| **Total** | **~62 days** | ~12-14 weeks |
 
 ### Critical Success Factors
 
-✓ **muOS must support RetroArch** (verify UDP protocol or alternative)  
+✓ **muOS supports RetroArch** (CONFIRMED: process-based control)  
+⚠️ **SIGSTOP preserves emulation state** (NEEDS HARDWARE VALIDATION)  
 ✓ **LVGL performance** (test on target hardware early)  
-✓ **Framebuffer access** (for overlay mode screenshots)  
-✓ **Input system compatibility** (hotkey trigger from muhotkey)  
+⚠️ **Screenshot directory location** (NEEDS HARDWARE VALIDATION)  
+✓ **Input system compatibility** (hotkey trigger from muhotkey confirmed)  
 ✓ **Memory constraints** (< 25MB footprint)
 
 ---

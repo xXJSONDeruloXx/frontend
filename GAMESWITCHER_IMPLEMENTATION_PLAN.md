@@ -224,9 +224,9 @@ void readHistory(const char *path) {
 #include "../lvgl/lvgl.h"
 
 #define MAX_HISTORY 100
-#define HISTORY_PATH "/mnt/mmc/MUOS/save/history/content_history.lpl"
-#define ROM_SCREENS_DIR "/mnt/mmc/MUOS/save/screenshots"
-#define STATES_DIR "/mnt/mmc/MUOS/save/state"
+#define PLAYTIME_DATA_PATH "/mnt/mmc/MUOS/info/tracker/playtime_data.json"  // muOS custom format
+#define ROM_SCREENS_DIR "/mnt/mmc/MUOS/save/screenshots"  // TO BE VERIFIED ON HARDWARE
+#define STATES_DIR "/mnt/mmc/MUOS/save/state"  // TO BE VERIFIED ON HARDWARE
 
 typedef struct {
     char label[STR_MAX];
@@ -629,9 +629,10 @@ void test_input_LeftNav_ClampAtZero(void) {
 ### **Phase 4: RetroArch Integration (Weeks 7-8)**
 
 #### Objectives
-- Implement config parsing (cascading overrides)
-- Add UDP command protocol
-- Create pause/resume/save/load functions
+- Implement process-based control (SIGSTOP/SIGCONT)
+- Add config parsing (cascading overrides)
+- Create kill/restart mechanism for game switching
+- Implement config-based save/load
 
 #### Deliverables
 
@@ -641,19 +642,24 @@ void test_input_LeftNav_ClampAtZero(void) {
 #define MUXSWITCHER_RA_H
 
 #include <stdbool.h>
+#include <signal.h>
+#include <sys/types.h>
 
 typedef enum {
-    RA_CMD_PAUSE,
-    RA_CMD_UNPAUSE,
-    RA_CMD_SAVE_STATE,
-    RA_CMD_LOAD_STATE,
-    RA_CMD_QUIT
-} RACommand;
+    RA_CONTROL_PAUSE,      // SIGSTOP
+    RA_CONTROL_RESUME,     // SIGCONT
+    RA_CONTROL_SAVE_AUTO,  // Config-based auto-save
+    RA_CONTROL_LOAD_AUTO,  // Config-based auto-load
+    RA_CONTROL_KILL        // SIGKILL
+} RAControlAction;
 
-bool switcher_ra_send_command(RACommand cmd, int param);
-bool switcher_ra_get_status(int *state);
+bool switcher_ra_control(RAControlAction action);
+pid_t switcher_ra_find_process(void);
+bool switcher_ra_is_running(void);
 bool switcher_ra_parse_config(const char *core_name, const char *rom_name, char *aspect_ratio_out);
 bool switcher_ra_find_core(const char *rom_path, char *core_path_out, char *core_name_out);
+bool switcher_ra_write_autoload_config(bool enable);
+bool switcher_ra_write_autosave_config(bool enable);
 
 #endif
 ```
@@ -661,44 +667,76 @@ bool switcher_ra_find_core(const char *rom_path, char *core_path_out, char *core
 **Implementation:**
 ```c
 #include "switcher_ra.h"
-#include <sys/socket.h>
-#include <netinet/in.h>
+#include <signal.h>
+#include <dirent.h>
+#include <stdio.h>
+#include <string.h>
 
-#define RA_UDP_PORT 55355
+pid_t switcher_ra_find_process(void) {
+    // Check via muOS system variable first
+    FILE *fp = popen("pgrep -x retroarch", "r");
+    if (!fp) return -1;
+    
+    pid_t pid = -1;
+    fscanf(fp, "%d", &pid);
+    pclose(fp);
+    
+    return pid;
+}
 
-bool switcher_ra_send_command(RACommand cmd, int param) {
-    int sock = socket(AF_INET, SOCK_DGRAM, 0);
-    if (sock < 0) return false;
+bool switcher_ra_is_running(void) {
+    return switcher_ra_find_process() > 0;
+}
+
+bool switcher_ra_control(RAControlAction action) {
+    pid_t ra_pid = switcher_ra_find_process();
+    if (ra_pid <= 0) return false;
     
-    struct sockaddr_in addr = {
-        .sin_family = AF_INET,
-        .sin_port = htons(RA_UDP_PORT),
-        .sin_addr.s_addr = inet_addr("127.0.0.1")
-    };
-    
-    char command[64];
-    switch (cmd) {
-        case RA_CMD_PAUSE:
-            snprintf(command, sizeof(command), "PAUSE");
-            break;
-        case RA_CMD_UNPAUSE:
-            snprintf(command, sizeof(command), "UNPAUSE");
-            break;
-        case RA_CMD_SAVE_STATE:
-            snprintf(command, sizeof(command), "SAVE_STATE %d", param);
-            break;
-        case RA_CMD_LOAD_STATE:
-            snprintf(command, sizeof(command), "LOAD_STATE %d", param);
-            break;
-        case RA_CMD_QUIT:
-            snprintf(command, sizeof(command), "QUIT");
-            break;
+    switch (action) {
+        case RA_CONTROL_PAUSE:
+            // Pause emulation by stopping the process
+            return kill(ra_pid, SIGSTOP) == 0;
+            
+        case RA_CONTROL_RESUME:
+            // Resume emulation
+            return kill(ra_pid, SIGCONT) == 0;
+            
+        case RA_CONTROL_SAVE_AUTO:
+            // Write auto-save config that RA will pick up
+            return switcher_ra_write_autosave_config(true);
+            
+        case RA_CONTROL_LOAD_AUTO:
+            // Write auto-load config
+            return switcher_ra_write_autoload_config(true);
+            
+        case RA_CONTROL_KILL:
+            // Force quit RetroArch
+            return kill(ra_pid, SIGKILL) == 0;
     }
+    return false;
+}
+
+bool switcher_ra_write_autoload_config(bool enable) {
+    const char *config_path = "/tmp/ra_autoload_once.cfg";
+    FILE *fp = fopen(config_path, "w");
+    if (!fp) return false;
     
-    int result = sendto(sock, command, strlen(command), 0,
-                       (struct sockaddr*)&addr, sizeof(addr));
-    close(sock);
-    return result > 0;
+    fprintf(fp, "savestate_auto_load = \"%s\"\n", enable ? "true" : "false");
+    fclose(fp);
+    
+    return true;
+}
+
+bool switcher_ra_write_autosave_config(bool enable) {
+    const char *config_path = "/tmp/ra_autosave.cfg";
+    FILE *fp = fopen(config_path, "w");
+    if (!fp) return false;
+    
+    fprintf(fp, "savestate_auto_save = \"%s\"\n", enable ? "true" : "false");
+    fprintf(fp, "savestate_auto_index = \"true\"\n");
+    fclose(fp);
+    
+    return true;
 }
 
 bool switcher_ra_parse_config(const char *core_name, const char *rom_name, 
@@ -733,10 +771,49 @@ bool switcher_ra_parse_config(const char *core_name, const char *rom_name,
 #### Tests
 
 ```c
-void test_ra_sendCommand_ValidPause(void) {
-    // Mock UDP socket
-    bool result = switcher_ra_send_command(RA_CMD_PAUSE, 0);
+void test_ra_control_ValidPause(void) {
+    // Setup: Launch mock RetroArch process
+    pid_t mock_pid = fork();
+    if (mock_pid == 0) {
+        // Child: pretend to be RetroArch
+        while(1) sleep(1);
+    }
+    
+    // Test pause
+    bool result = switcher_ra_control(RA_CONTROL_PAUSE);
     TEST_ASSERT_TRUE(result);
+    
+    // Verify process is stopped
+    char status[256];
+    snprintf(status, sizeof(status), "/proc/%d/status", mock_pid);
+    FILE *fp = fopen(status, "r");
+    char line[256];
+    bool is_stopped = false;
+    while (fgets(line, sizeof(line), fp)) {
+        if (strstr(line, "State:") && strstr(line, "T (stopped)")) {
+            is_stopped = true;
+            break;
+        }
+    }
+    fclose(fp);
+    TEST_ASSERT_TRUE(is_stopped);
+    
+    // Cleanup
+    kill(mock_pid, SIGKILL);
+}
+
+void test_ra_writeAutoloadConfig_CreatesFile(void) {
+    remove("/tmp/ra_autoload_once.cfg");
+    
+    bool result = switcher_ra_write_autoload_config(true);
+    
+    TEST_ASSERT_TRUE(result);
+    TEST_ASSERT_TRUE(file_exist("/tmp/ra_autoload_once.cfg"));
+    
+    // Verify content
+    char *content = read_file("/tmp/ra_autoload_once.cfg");
+    TEST_ASSERT_TRUE(strstr(content, "savestate_auto_load = \"true\"") != NULL);
+    free(content);
 }
 
 void test_ra_parseConfig_CascadePriority(void) {
@@ -1005,11 +1082,12 @@ ModuleEntry modules[] = {
 ### File System Paths (muOS-specific)
 
 ```c
-#define MUOS_HISTORY_PATH "/mnt/mmc/MUOS/save/history/content_history.lpl"
-#define MUOS_ROM_SCREENS  "/mnt/mmc/MUOS/save/screenshots"
-#define MUOS_STATES_DIR   "/mnt/mmc/MUOS/save/state"
-#define MUOS_RA_CONFIG    "/mnt/mmc/MUOS/retroarch/retroarch.cfg"
-#define MUOS_TEMP_FLAGS   "/tmp/muos"
+#define MUOS_PLAYTIME_PATH "/mnt/mmc/MUOS/info/tracker/playtime_data.json"  // Custom JSON format
+#define MUOS_ROM_SCREENS   "/mnt/mmc/MUOS/save/screenshots"  // TO BE VERIFIED
+#define MUOS_STATES_DIR    "/mnt/mmc/MUOS/save/state"  // TO BE VERIFIED
+#define MUOS_RA_CONFIG     "/mnt/mmc/MUOS/retroarch/retroarch.cfg"
+#define MUOS_TEMP_FLAGS    "/tmp/muos"
+#define MUOS_ROM_GO        "/tmp/rom_go"  // Game launch parameters
 ```
 
 ---
@@ -1091,10 +1169,10 @@ jobs:
 - Reduce screenshot resolution
 - Limit concurrent image decoders
 
-**If RetroArch integration fails:**
-- Implement process-based communication (signals)
-- Use config files for state management
-- Add polling mechanism instead of UDP
+**If SIGSTOP/SIGCONT doesn't preserve state:**
+- Fallback to kill/restart mechanism
+- Use savestate auto-save before switching
+- Implement config-based save/load triggers
 
 ---
 
