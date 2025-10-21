@@ -1,3 +1,6 @@
 [submodule "reference/Onion"]
 	path = reference/Onion
 	url = https://github.com/xXJSONDeruloXx/Onion.git
+[submodule "reference/internal"]
+	path = reference/internal
+	url = https://github.com/xXJSONDeruloXx/internal.git
