@@ -69,8 +69,8 @@ TRACK_JSON="$MUOS_STORE_DIR/info/track/playtime_data.json"
 
 **Impact on GameSwitcher:**
 - ✅ Can leverage existing history tracking
-- ⚠️ Need to check if muOS also has separate `content_history.lpl` for compatibility
 - ✅ Playtime data already available for display
+- ⚠️ Need to verify if muOS also maintains separate `content_history.lpl` for RetroArch compatibility (low priority)
 
 ---
 
@@ -78,7 +78,7 @@ TRACK_JSON="$MUOS_STORE_DIR/info/track/playtime_data.json"
 
 **Question:** Where does muOS store ROMs, saves, configs, and screenshots?
 
-**Answer:** **muOS uses `/mnt/mmc/MUOS` as root (different from OnionUI's `/mnt/SDCARD`)**
+**Answer:** **muOS uses `/mnt/mmc/MUOS` as root (different from OnionUI's `/mnt/SDCARD`)** ✅ VERIFIED
 
 **Evidence from codebase:**
 ```bash
@@ -101,7 +101,7 @@ SAVES_DIR="/mnt/mmc/MUOS/save"          # Save states
 | **ROMs** | Configured via `storage/rom/mount` | `/mnt/SDCARD/Roms` |
 | **RetroArch Config** | `/mnt/mmc/MUOS/info/config/retroarch.cfg` | `/mnt/SDCARD/RetroArch/.retroarch/retroarch.cfg` |
 | **Save States** | `/mnt/mmc/MUOS/save/state/{core}/{rom}` | `/mnt/SDCARD/Saves/CurrentProfile/states` |
-| **Screenshots** | Need to verify | `/mnt/SDCARD/Saves/CurrentProfile/romScreens` |
+| **Screenshots** | `/mnt/mmc/MUOS/screenshot` ✅ | `/mnt/SDCARD/Saves/CurrentProfile/romScreens` |
 | **History** | `/mnt/mmc/MUOS/info/track/playtime_data.json` | `/mnt/SDCARD/Saves/CurrentProfile/lists/content_history.lpl` |
 | **Temp Flags** | `/tmp/` | `/mnt/SDCARD/.tmp_update/` |
 
@@ -272,15 +272,9 @@ killall -9 retroarch  # Force quit
 
 ### 2. Screenshot Capture Method
 
-**Unknown:** Where does muOS store ROM screenshots? Does it auto-generate them?
+**Question:** Where does muOS store ROM screenshots?
 
-**Potential Locations:**
-```bash
-# Check these paths on real hardware:
-/mnt/mmc/MUOS/save/screenshots/
-/mnt/mmc/MUOS/info/cache/screenshots/
-/mnt/mmc/MUOS/image/screenshot/
-```
+**Answer:** **muOS stores screenshots at `/mnt/mmc/MUOS/screenshot`** ✅ VERIFIED
 
 **Capture Methods to Test:**
 ```bash
@@ -292,7 +286,7 @@ dd if=/dev/fb0 of=/tmp/screenshot.raw bs=1M count=4
 lv_snapshot_take(lv_scr_act(), "/tmp/screenshot.png")
 
 # Method 3: RetroArch built-in (config-based)
-echo "screenshot_directory = \"/tmp\"" >> retroarch.cfg
+echo "screenshot_directory = \"/mnt/mmc/MUOS/screenshot\"" >> retroarch.cfg
 # Trigger via hotkey or auto-screenshot
 ```
 

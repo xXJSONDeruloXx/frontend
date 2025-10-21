@@ -4,6 +4,9 @@
 
 All critical architectural unknowns have been **experimentally verified** on actual muOS hardware. Implementation can proceed with confidence.
 
+**Last Updated:** October 21, 2025  
+**Verification Status:** 95% Complete (Config-based save/load deferred to Phase 7-8)
+
 ---
 
 ## Documentation Index
@@ -35,6 +38,12 @@ kill(ra_pid, SIGCONT);  // Resume
 ```c
 // ✅ TESTED: Stable output, 640×480 RGB565
 dd if=/dev/fb0 of=/tmp/overlay_bg.raw bs=1M count=2
+```
+
+### Screenshot Storage
+```c
+// ✅ VERIFIED: Screenshot directory location
+#define SCREENSHOT_DIR "/mnt/mmc/MUOS/screenshot"
 ```
 
 ### History Data
@@ -108,6 +117,7 @@ dd if=/dev/fb0 of=/tmp/overlay_bg.raw bs=1M count=2
 - Config-based save/load (medium confidence, fallback available)
 - Memory leaks (standard testing, low risk)
 - Device variations (multi-device testing, low impact)
+- content_history.lpl compatibility (for migration only, optional)
 
 ---
 
@@ -129,6 +139,7 @@ dd if=/dev/fb0 of=/tmp/overlay_bg.raw bs=1M count=2
 1. Any preferred patterns for mux module integration?
 2. muhotkey combo configuration best practices?
 3. Existing overlay/popup UI patterns to follow?
+4. Preferred screenshot generation/storage workflow?
 
 ### Not Critical (Already Verified)
 - ~~How to pause RetroArch?~~ → Signals work
@@ -158,7 +169,7 @@ dd if=/dev/fb0 of=/tmp/overlay_bg.raw bs=1M count=2
 
 ## Confidence Level
 
-**Overall: 95%** (5% reserved for save/load config testing)
+**Overall: 95%** (5% reserved for config-based save/load testing in Phase 7-8)
 
 | Component | Confidence |
 |-----------|-----------|
@@ -167,13 +178,15 @@ dd if=/dev/fb0 of=/tmp/overlay_bg.raw bs=1M count=2
 | LVGL overlay | 95% ✅ |
 | History parsing | 100% ✅ |
 | Path accuracy | 100% ✅ |
-| Config save/load | 70% ⚠️ |
+| Screenshot storage | 100% ✅ |
+| Config save/load | 70% ⚠️ (Deferred with fallback) |
 
 ---
 
 **Status:** READY FOR PRODUCTION IMPLEMENTATION 🚀
 
-**Last Updated:** October 20, 2025  
+**Last Updated:** October 21, 2025  
 **Phase:** Hardware Validation COMPLETE ✅  
 **Next Phase:** Core Implementation  
 **Blocker Status:** NONE (all critical paths verified)
+

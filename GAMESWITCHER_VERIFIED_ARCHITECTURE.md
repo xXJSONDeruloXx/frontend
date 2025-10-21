@@ -278,6 +278,7 @@ All paths verified via `ls` and file read tests on hardware:
 | **Playtime Data** | `/mnt/mmc/MUOS/info/track/playtime_data.json` | ✅ | Custom JSON |
 | **Cores** | `/mnt/mmc/MUOS/core/{name}_libretro.so` | ✅ | Libretro cores |
 | **Save States** | `/mnt/mmc/MUOS/save/state/{core}/{rom}.state*` | ✅ | Per-core dirs |
+| **Screenshots** | `/mnt/mmc/MUOS/screenshot` | ✅ | Screenshot storage |
 | **Framebuffer** | `/dev/fb0` | ✅ | 640×480 RGB565 |
 | **Theme Assets** | `/mnt/mmc/MUOS/theme/active/` | ✅ | Active theme |
 | **Temp Storage** | `/tmp/` | ✅ | Overlay data |
@@ -316,6 +317,7 @@ All paths verified via `ls` and file read tests on hardware:
 
 #define PLAYTIME_JSON "/mnt/mmc/MUOS/info/track/playtime_data.json"
 #define SAVE_STATE_DIR "/mnt/mmc/MUOS/save/state"
+#define SCREENSHOT_DIR "/mnt/mmc/MUOS/screenshot"
 #define CORE_DIR "/mnt/mmc/MUOS/core"
 #define FB_DEVICE "/dev/fb0"
 

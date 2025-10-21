@@ -71,7 +71,12 @@ This document summarizes the comprehensive analysis of porting OnionUI's gameSwi
    - Custom JSON format at verified path
    - Rich metadata: playtime, launch counts, per-core stats
    - Already integrated with muOS tracking system
-   - **NO content_history.lpl** in standard muOS
+   - **NO content_history.lpl** in standard muOS (low priority for compatibility)
+
+6. **Screenshots** ✅ **DIRECTORY VERIFIED**
+   - Location: `/mnt/mmc/MUOS/screenshot`
+   - Can use framebuffer capture or RetroArch built-in
+   - Hash-based or name-based filename strategies available
 
 6. **Module System** ✅ **CONFIRMED OPERATIONAL**
    - Uses `EXEC_MUX()` for module execution
@@ -88,11 +93,16 @@ This document summarizes the comprehensive analysis of porting OnionUI's gameSwi
 
 ### ⚠️ What Needs Testing (DEFERRED TO IMPLEMENTATION)
 
-1. **Config-Based Save/Load** (Medium Priority)
+1. **Config-Based Save/Load** (Medium Priority - Phase 7-8)
    - Writing to `/tmp/ra_autoload.cfg`
    - RetroArch `--appendconfig` flag behavior
    - Auto-save/auto-load state triggers
    - **Fallback plan**: Kill/restart if config method fails
+
+2. **content_history.lpl Compatibility** (Low Priority - Optional)
+   - Check if file exists for RetroArch compatibility
+   - Useful only for migration tools
+   - Not required for core functionality
 
 ---
 
@@ -184,12 +194,14 @@ muxswitcher/
 | **Framebuffer inaccessible** | ✅ RESOLVED | Direct `/dev/fb0` access works |
 | **LVGL conflicts** | ✅ RESOLVED | No concurrency issues observed |
 | **Path speculation** | ✅ RESOLVED | All paths verified on device |
+| **Screenshot location** | ✅ RESOLVED | `/mnt/mmc/MUOS/screenshot` confirmed |
 
 ### Remaining Risks (LOW PRIORITY)
 
 | Risk | Probability | Mitigation |
 |------|-------------|------------|
 | **Config-based save/load** | Medium | Test in Phase 4, use kill/restart fallback |
+| **content_history.lpl** | Low | Optional for migration/compatibility only |
 | **Memory leaks** | Low | Valgrind testing before release |
 | **Device-specific bugs** | Low | Test on multiple muOS variants |
 

@@ -4,7 +4,7 @@
 
 This document outlines a **test-driven development (TDD)** approach to port the OnionUI gameSwitcher feature to muOS. The gameSwitcher enables users to quickly switch between recently played games, manage save states, and resume gameplay without returning to the main menu—all from an overlay that can be triggered during active gameplay.
 
-**Estimated Timeline**: 8-12 weeks (1 developer, full-time)  
+**Estimated Timeline**: 8-10 weeks (1 developer, full-time) - Reduced due to hardware validation  
 **Primary Challenge**: UI framework migration (SDL 1.2 → LVGL)  
 **Success Criteria**: Feature parity with OnionUI gameSwitcher + muOS integration tests passing
 
@@ -225,8 +225,8 @@ void readHistory(const char *path) {
 
 #define MAX_HISTORY 100
 #define PLAYTIME_DATA_PATH "/mnt/mmc/MUOS/info/tracker/playtime_data.json"  // muOS custom format
-#define ROM_SCREENS_DIR "/mnt/mmc/MUOS/save/screenshots"  // TO BE VERIFIED ON HARDWARE
-#define STATES_DIR "/mnt/mmc/MUOS/save/state"  // TO BE VERIFIED ON HARDWARE
+#define ROM_SCREENS_DIR "/mnt/mmc/MUOS/screenshot"  // ✅ VERIFIED
+#define STATES_DIR "/mnt/mmc/MUOS/save/state"  // ✅ VERIFIED
 
 typedef struct {
     char label[STR_MAX];
